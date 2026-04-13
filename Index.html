@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>B Btry 1-77 FAR — Ammo Tracker</title>
+<style>
+:root {
+  --bg:       #f0f2f4;
+  --surface:  #ffffff;
+  --surface2: #f8f9fa;
+  --border:   #d0d4da;
+  --border2:  #b0b8c4;
+  --text:     #1a2030;
+  --text2:    #4a5568;
+  --text3:    #8a9ab0;
+  --green:    #2d7a3a;
+  --green-bg: #e8f5ea;
+  --red:      #c0392b;
+  --red-bg:   #fdecea;
+  --blue:     #1a4a8a;
+  --blue-bg:  #e8f0fc;
+  --amber:    #b45309;
+  --amber-bg: #fef3cd;
+  --shadow:   0 1px 4px rgba(0,0,0,0.10);
+  --shadow2:  0 2px 12px rgba(0,0,0,0.12);
+  --radius:   8px;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:var(--bg); color:var(--text); font-family:'Segoe UI',Arial,sans-serif; font-size:14px; }
+
+/* ── HEADER ── */
+.header {
+  background:var(--blue);
+  color:white;
+  padding:14px 24px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  box-shadow:var(--shadow2);
+  position:sticky;
+  top:0;
+  z-index:100;
+}
+.header-left { display:flex; align-items:center; gap:14px; }
+.header-title { font-size:18px; font-weight:700; letter-spacing:0.04em; }
+.header-sub   { font-size:11px; opacity:0.7; letter-spacing:0.08em; }
+.header-right { display:flex; align-items:center; gap:10px; }
+
+/* UBL SUMMARY BAR */
+.ubl-bar {
+  background:var(--surface);
+  border-bottom:1px solid var(--border);
+  padding:10px 24px;
+  display:flex;
+  gap:24px;
+  align-items:center;
+  flex-wrap:wrap;
+}
+.ubl-item { display:flex; align-items:center; gap:8px; }
+.ubl-label { font-size:11px; font-weight:600; color:var(--text2); letter-spacing:0.08em; text-transform:uppercase; }
+.ubl-val   { font-size:15px; font-weight:700; color:var(--blue); }
+.ubl-sep   { width:1px; height:24px; background:var(--border); }
+.ubl-ammo-type {
+  font-size:11px; font-weight:600; letter-spacing:0.06em;
+  padding:3px 10px; border-radius:20px;
+  border:1px solid;
+}
+.ubl-ammo-type.rocket { background:var(--blue-bg); color:var(--blue); border-color:rgba(26,74,138,0.3); }
+.ubl-ammo-type.missile{ background:var(--amber-bg); color:var(--amber); border-color:rgba(180,83,9,0.3); }
+
+/* ── MAIN LAYOUT ── */
+.main { padding:20px 24px; display:flex; flex-direction:column; gap:20px; }
+
+/* ── SECTION HEADERS ── */
+.section-hdr {
+  display:flex; align-items:center; justify-content:space-between;
+  margin-bottom:12px;
+}
+.section-title {
+  font-size:13px; font-weight:700; letter-spacing:0.1em;
+  text-transform:uppercase; color:var(--text2);
+  display:flex; align-items:center; gap:8px;
+}
+.section-title::before {
+  content:''; display:inline-block; width:4px; height:16px;
+  background:var(--blue); border-radius:2px;
+}
+
+/* ── PLATOON GROUP ── */
+.platoon-group { margin-bottom:4px; }
+.platoon-label {
+  font-size:11px; font-weight:700; letter-spacing:0.12em;
+  text-transform:uppercase; color:var(--text3);
+  margin-bottom:8px; padding-left:4px;
+}
+.launchers-row {
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:12px;
+}
+
+/* ── LAUNCHER CARD ── */
+.launcher-card {
+  background:var(--surface);
+  border:1.5px solid var(--border);
+  border-radius:var(--radius);
+  box-shadow:var(--shadow);
+  overflow:hidden;
+  transition:border-color 0.2s;
+}
+.launcher-card:hover { border-color:var(--border2); }
+.launcher-card.has-alert { border-color:#e8a000; }
+
+.launcher-hdr {
+  background:var(--blue);
+  color:white;
+  padding:7px 12px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+}
+.launcher-id   { font-size:13px; font-weight:700; letter-spacing:0.06em; }
+.launcher-status { display:flex; gap:6px; align-items:center; }
+.status-badge {
+  font-size:9px; font-weight:700; letter-spacing:0.1em;
+  padding:2px 7px; border-radius:20px;
+  cursor:pointer; user-select:none; transition:all 0.15s;
+  border:1px solid rgba(255,255,255,0.4);
+}
+.status-badge.fmc  { background:rgba(45,122,58,0.9);  color:white; }
+.status-badge.nmc  { background:rgba(192,57,43,0.9);  color:white; }
+.status-badge.inactive { background:rgba(255,255,255,0.15); color:rgba(255,255,255,0.6); }
+
+.launcher-body { padding:10px 12px; }
+
+/* POD SLOT */
+.pods-wrap { display:flex; gap:8px; }
+.pod-slot {
+  flex:1;
+  border:1.5px dashed var(--border);
+  border-radius:6px;
+  padding:8px;
+  min-height:110px;
+  position:relative;
+  transition:all 0.2s;
+  cursor:default;
+}
+.pod-slot.occupied { border-style:solid; border-color:var(--border2); background:var(--surface2); }
+.pod-slot.drag-over { border-color:var(--blue); background:var(--blue-bg); }
+.pod-slot-label {
+  font-size:9px; font-weight:600; letter-spacing:0.1em;
+  text-transform:uppercase; color:var(--text3);
+  margin-bottom:6px;
+}
+
+/* POD */
+.pod {
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:5px;
+  padding:6px;
+  cursor:grab;
+  user-select:none;
+  transition:box-shadow 0.15s;
+}
+.pod:active { cursor:grabbing; box-shadow:var(--shadow2); }
+.pod-type-row {
+  display:flex; align-items:center; justify-content:space-between;
+  margin-bottom:6px;
+}
+.pod-type-badge {
+  font-size:9px; font-weight:700; letter-spacing:0.08em;
+  padding:2px 7px; border-radius:20px;
+}
+.pod-type-badge.rocket  { background:var(--blue-bg);  color:var(--blue); }
+.pod-type-badge.missile { background:var(--amber-bg); color:var(--amber); }
+
+.pod-variant {
+  font-size:9px; color:var(--text3); font-weight:600;
+  cursor:pointer; text-decoration:underline dotted;
+}
+.pod-variant:hover { color:var(--text2); }
+
+/* ROUND CIRCLES */
+.rounds-grid {
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:4px;
+}
+.round-circle {
+  width:100%;
+  aspect-ratio:1;
+  border-radius:50%;
+  border:2px solid var(--border2);
+  background:var(--surface);
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  transition:all 0.15s;
+  font-size:10px;
+  font-weight:700;
+  color:transparent;
+}
+.round-circle:hover { border-color:var(--blue); background:var(--blue-bg); }
+.round-circle.expended {
+  background:var(--red);
+  border-color:var(--red);
+  color:white;
+}
+.round-circle.missile-round {
+  border-radius:4px;
+  grid-column:1/-1;
+  aspect-ratio:auto;
+  height:32px;
+}
+.round-circle.missile-round.expended { background:var(--red); border-color:var(--red); color:white; }
+
+.pod-empty-label {
+  font-size:10px; color:var(--text3); text-align:center;
+  padding:8px 0; font-style:italic;
+}
+.pod-slot-empty {
+  display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  height:80px; gap:6px;
+}
+.pod-slot-empty-icon { font-size:20px; opacity:0.25; }
+.pod-slot-empty-text { font-size:10px; color:var(--text3); }
+
+.add-pod-btn {
+  width:100%; margin-top:6px;
+  background:transparent; border:1px dashed var(--border2);
+  border-radius:5px; padding:5px;
+  font-size:10px; color:var(--text3);
+  cursor:pointer; transition:all 0.15s;
+  letter-spacing:0.04em;
+}
+.add-pod-btn:hover { border-color:var(--blue); color:var(--blue); background:var(--blue-bg); }
+
+/* ── STORAGE SECTION ── */
+.storage-grid {
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:12px;
+}
+.storage-card {
+  background:var(--surface);
+  border:1.5px solid var(--border);
+  border-radius:var(--radius);
+  box-shadow:var(--shadow);
+  overflow:hidden;
+}
+.storage-hdr {
+  background:var(--surface2);
+  border-bottom:1px solid var(--border);
+  padding:7px 12px;
+  display:flex; align-items:center; justify-content:space-between;
+}
+.storage-id   { font-size:12px; font-weight:700; color:var(--text); }
+.storage-type { font-size:10px; color:var(--text3); font-weight:600; letter-spacing:0.06em; }
+.storage-body { padding:10px 12px; }
+.storage-pods { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+.storage-pod-slot {
+  border:1.5px dashed var(--border);
+  border-radius:5px;
+  padding:6px;
+  min-height:70px;
+  transition:all 0.2s;
+}
+.storage-pod-slot.occupied { border-style:solid; border-color:var(--border2); background:var(--surface2); }
+.storage-pod-slot.drag-over { border-color:var(--blue); background:var(--blue-bg); }
+
+/* ── MODALS ── */
+.modal-overlay {
+  position:fixed; inset:0;
+  background:rgba(0,0,0,0.5);
+  z-index:200;
+  display:flex; align-items:center; justify-content:center;
+  animation:fadeIn 0.15s ease;
+}
+.modal-overlay.hidden { display:none; }
+@keyframes fadeIn { from{opacity:0} to{opacity:1} }
+.modal {
+  background:var(--surface);
+  border-radius:12px;
+  padding:24px;
+  width:360px;
+  max-width:90vw;
+  box-shadow:0 8px 40px rgba(0,0,0,0.2);
+  animation:slideUp 0.2s ease;
+}
+@keyframes slideUp { from{transform:translateY(16px);opacity:0} to{transform:translateY(0);opacity:1} }
+.modal-title { font-size:16px; font-weight:700; margin-bottom:16px; color:var(--text); }
+.modal-field { margin-bottom:14px; }
+.modal-label { font-size:11px; font-weight:600; letter-spacing:0.06em; color:var(--text2); margin-bottom:5px; display:block; text-transform:uppercase; }
+.modal-input, .modal-select {
+  width:100%; padding:9px 12px;
+  border:1.5px solid var(--border);
+  border-radius:6px; font-size:14px;
+  background:var(--surface);
+  color:var(--text);
+  transition:border-color 0.15s;
+}
+.modal-input:focus, .modal-select:focus { outline:none; border-color:var(--blue); }
+.modal-btns { display:flex; gap:8px; justify-content:flex-end; margin-top:18px; }
+.btn {
+  padding:9px 20px; border-radius:6px;
+  font-size:13px; font-weight:600;
+  cursor:pointer; border:none; transition:all 0.15s;
+  letter-spacing:0.02em;
+}
+.btn-primary { background:var(--blue); color:white; }
+.btn-primary:hover { background:#1a3d7a; }
+.btn-secondary { background:var(--surface2); color:var(--text2); border:1px solid var(--border); }
+.btn-secondary:hover { background:var(--border); }
+.btn-danger { background:var(--red); color:white; }
+.btn-danger:hover { background:#a93226; }
+
+/* RESET BTN */
+.btn-reset {
+  background:rgba(255,255,255,0.15);
+  color:white; border:1px solid rgba(255,255,255,0.3);
+  padding:6px 14px; border-radius:6px;
+  font-size:12px; font-weight:600;
+  cursor:pointer; transition:all 0.15s;
+}
+.btn-reset:hover { background:rgba(255,255,255,0.25); }
+
+/* PRINT */
+@media print {
+  .header { position:static; }
+  .modal-overlay { display:none !important; }
+  .add-pod-btn { display:none; }
+  .btn-reset { display:none; }
+}
+
+/* RESPONSIVE */
+@media(max-width:900px) {
+  .launchers-row { grid-template-columns:repeat(2,1fr); }
+  .storage-grid  { grid-template-columns:repeat(2,1fr); }
+}
+@media(max-width:600px) {
+  .launchers-row { grid-template-columns:1fr; }
+  .storage-grid  { grid-template-columns:1fr; }
+  .main { padding:12px; }
+  .ubl-bar { padding:10px 12px; gap:12px; }
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-left">
+    <div>
+      <div class="header-title">B BTRY, 1-77 FAR</div>
+      <div class="header-sub">M270A2 AMMUNITION TRACKER</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <button class="btn-reset" onclick="confirmReset()">↺ Reset All</button>
+    <button class="btn-reset" onclick="window.print()">⎙ Print</button>
+  </div>
+</div>
+
+<!-- UBL SUMMARY BAR -->
+<div class="ubl-bar">
+  <div class="ubl-item">
+    <span class="ubl-label">Total Pods</span>
+    <span class="ubl-val" id="ubl-total-pods">0</span>
+  </div>
+  <div class="ubl-sep"></div>
+  <div class="ubl-item">
+    <span class="ubl-label">Rounds Loaded</span>
+    <span class="ubl-val" id="ubl-loaded">0</span>
+  </div>
+  <div class="ubl-sep"></div>
+  <div class="ubl-item">
+    <span class="ubl-label">Rounds Expended</span>
+    <span class="ubl-val" id="ubl-expended" style="color:var(--red)">0</span>
+  </div>
+  <div class="ubl-sep"></div>
+  <div class="ubl-item">
+    <span class="ubl-label">Pods Empty</span>
+    <span class="ubl-val" id="ubl-empty-pods" style="color:var(--amber)">0</span>
+  </div>
+  <div class="ubl-sep"></div>
+  <div class="ubl-item">
+    <span class="ubl-label">Current UBL</span>
+    <span class="ubl-val" id="ubl-current">0 pods / 0 rounds</span>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main" id="main-content"></div>
+
+<!-- ADD POD MODAL -->
+<div class="modal-overlay hidden" id="modal-add-pod">
+  <div class="modal">
+    <div class="modal-title">Add Pod</div>
+    <div class="modal-field">
+      <label class="modal-label">Munition Type</label>
+      <select class="modal-select" id="pod-type">
+        <option value="rocket">MLRS Rocket (6 rounds)</option>
+        <option value="missile">ATACMS Missile (1 missile)</option>
+      </select>
+    </div>
+    <div class="modal-field">
+      <label class="modal-label">Variant / Lot</label>
+      <input class="modal-input" id="pod-variant" placeholder="e.g. M31A1, M32, M57 / LOT-1234" />
+    </div>
+    <div class="modal-field" id="rounds-field">
+      <label class="modal-label">Rounds in Pod (max 6)</label>
+      <input class="modal-input" type="number" id="pod-rounds" value="6" min="1" max="6" />
+    </div>
+    <div class="modal-btns">
+      <button class="btn btn-secondary" onclick="closeModal('modal-add-pod')">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmAddPod()">Add Pod</button>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT VARIANT MODAL -->
+<div class="modal-overlay hidden" id="modal-edit-variant">
+  <div class="modal">
+    <div class="modal-title">Edit Pod</div>
+    <div class="modal-field">
+      <label class="modal-label">Variant / Lot</label>
+      <input class="modal-input" id="edit-variant-input" placeholder="e.g. M31A1, M57 / LOT-1234" />
+    </div>
+    <div class="modal-btns">
+      <button class="btn btn-danger" onclick="removePodFromEdit()">Remove Pod</button>
+      <button class="btn btn-secondary" onclick="closeModal('modal-edit-variant')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveVariant()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- RESET CONFIRM MODAL -->
+<div class="modal-overlay hidden" id="modal-reset">
+  <div class="modal">
+    <div class="modal-title">Reset All Data?</div>
+    <p style="color:var(--text2);font-size:13px;line-height:1.6;margin-bottom:16px">
+      This will clear all pods, rounds, and expended data for all launchers and vehicles. This cannot be undone.
+    </p>
+    <div class="modal-btns">
+      <button class="btn btn-secondary" onclick="closeModal('modal-reset')">Cancel</button>
+      <button class="btn btn-danger" onclick="resetAll()">Reset Everything</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════
+const LAUNCHERS = [
+  {id:'B11',platoon:'1st Platoon'},{id:'B12',platoon:'1st Platoon'},{id:'B13',platoon:'1st Platoon'},
+  {id:'B21',platoon:'2nd Platoon'},{id:'B22',platoon:'2nd Platoon'},{id:'B23',platoon:'2nd Platoon'},
+  {id:'B31',platoon:'3rd Platoon'},{id:'B32',platoon:'3rd Platoon'},{id:'B33',platoon:'3rd Platoon'},
+];
+const HEMMTS   = ['B101','B102','B103','B201','B202','B203','B301','B302','B303'];
+const TRAILERS = ['T101','T102','T103','T201','T202','T203','T301','T302','T303'];
+
+const LAUNCHER_POD_SLOTS = 2;
+const HEMMT_POD_SLOTS    = 4;
+const TRAILER_POD_SLOTS  = 4;
+
+let state = loadState();
+let addingTo = null;   // {vehicleId, slotIndex}
+let editingPod = null; // {vehicleId, slotIndex}
+let dragPod = null;    // {vehicleId, slotIndex, pod}
+
+function defaultState() {
+  const s = { launchers:{}, hemmts:{}, trailers:{} };
+  LAUNCHERS.forEach(l => {
+    s.launchers[l.id] = { fmc:true, nmc:false, pods:[null,null] };
+  });
+  HEMMTS.forEach(id => { s.hemmts[id]   = { pods:[null,null,null,null] }; });
+  TRAILERS.forEach(id => { s.trailers[id] = { pods:[null,null,null,null] }; });
+  return s;
+}
+
+function loadState() {
+  try {
+    const saved = localStorage.getItem('ammo_tracker_1_77');
+    return saved ? JSON.parse(saved) : defaultState();
+  } catch(e) { return defaultState(); }
+}
+
+function saveState() {
+  localStorage.setItem('ammo_tracker_1_77', JSON.stringify(state));
+  updateUBL();
+}
+
+// ═══════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════
+function render() {
+  const main = document.getElementById('main-content');
+  main.innerHTML = '';
+
+  // LAUNCHERS
+  const launchSection = document.createElement('div');
+  launchSection.innerHTML = `<div class="section-hdr"><div class="section-title">Launchers — M270A2</div></div>`;
+
+  const platoons = {};
+  LAUNCHERS.forEach(l => {
+    if(!platoons[l.platoon]) platoons[l.platoon] = [];
+    platoons[l.platoon].push(l);
+  });
+
+  Object.entries(platoons).forEach(([platoon, launchers]) => {
+    const pg = document.createElement('div');
+    pg.className = 'platoon-group';
+    pg.innerHTML = `<div class="platoon-label">${platoon}</div>`;
+    const row = document.createElement('div');
+    row.className = 'launchers-row';
+    launchers.forEach(l => row.appendChild(renderLauncher(l.id)));
+    pg.appendChild(row);
+    launchSection.appendChild(pg);
+  });
+  main.appendChild(launchSection);
+
+  // HEMMTS
+  const hemSection = document.createElement('div');
+  hemSection.innerHTML = `<div class="section-hdr"><div class="section-title">HEMTT — Storage (4 pods each)</div></div>`;
+  const hemGrid = document.createElement('div');
+  hemGrid.className = 'storage-grid';
+  HEMMTS.forEach(id => hemGrid.appendChild(renderStorage(id, 'hemmt', 'HEMTT')));
+  hemSection.appendChild(hemGrid);
+  main.appendChild(hemSection);
+
+  // TRAILERS
+  const trailSection = document.createElement('div');
+  trailSection.innerHTML = `<div class="section-hdr"><div class="section-title">M989A1 Trailer — Storage (4 pods each)</div></div>`;
+  const trailGrid = document.createElement('div');
+  trailGrid.className = 'storage-grid';
+  TRAILERS.forEach(id => trailGrid.appendChild(renderStorage(id, 'trailer', 'TRAILER')));
+  trailSection.appendChild(trailGrid);
+  main.appendChild(trailSection);
+
+  updateUBL();
+}
+
+function renderLauncher(id) {
+  const data = state.launchers[id];
+  const card = document.createElement('div');
+  card.className = 'launcher-card';
+  card.innerHTML = `
+    <div class="launcher-hdr">
+      <span class="launcher-id">${id}</span>
+      <div class="launcher-status">
+        <span class="status-badge ${data.fmc?'fmc':'inactive'}" onclick="toggleStatus('${id}','fmc')" title="Toggle FMC">FMC</span>
+        <span class="status-badge ${data.nmc?'nmc':'inactive'}" onclick="toggleStatus('${id}','nmc')" title="Toggle NMC">NMC</span>
+      </div>
+    </div>
+    <div class="launcher-body">
+      <div class="pods-wrap" id="pods-${id}"></div>
+    </div>`;
+
+  const podsWrap = card.querySelector(`#pods-${id}`);
+  for(let i=0; i<LAUNCHER_POD_SLOTS; i++) {
+    podsWrap.appendChild(renderPodSlot(id, i, 'launcher', data.pods[i]));
+  }
+  return card;
+}
+
+function renderStorage(id, type, label) {
+  const data = type==='hemmt' ? state.hemmts[id] : state.trailers[id];
+  const card = document.createElement('div');
+  card.className = 'storage-card';
+  card.innerHTML = `
+    <div class="storage-hdr">
+      <span class="storage-id">${id}</span>
+      <span class="storage-type">${label}</span>
+    </div>
+    <div class="storage-body">
+      <div class="storage-pods" id="pods-${id}"></div>
+    </div>`;
+
+  const podsWrap = card.querySelector(`#pods-${id}`);
+  const slots = type==='hemmt' ? HEMMT_POD_SLOTS : TRAILER_POD_SLOTS;
+  for(let i=0; i<slots; i++) {
+    podsWrap.appendChild(renderPodSlot(id, i, type, data.pods[i]));
+  }
+  return card;
+}
+
+function renderPodSlot(vehicleId, slotIdx, vehicleType, pod) {
+  const isLauncher = vehicleType==='launcher';
+  const slotEl = document.createElement('div');
+  slotEl.className = isLauncher
+    ? `pod-slot ${pod?'occupied':''}`
+    : `storage-pod-slot ${pod?'occupied':''}`;
+  slotEl.dataset.vehicle = vehicleId;
+  slotEl.dataset.slot    = slotIdx;
+  slotEl.dataset.type    = vehicleType;
+
+  // Drag target events
+  slotEl.addEventListener('dragover',  e => { e.preventDefault(); slotEl.classList.add('drag-over'); });
+  slotEl.addEventListener('dragleave', e => slotEl.classList.remove('drag-over'));
+  slotEl.addEventListener('drop',      e => handleDrop(e, vehicleId, slotIdx, vehicleType));
+
+  if(pod) {
+    slotEl.appendChild(renderPod(vehicleId, slotIdx, vehicleType, pod, isLauncher));
+  } else {
+    const empty = document.createElement('div');
+    empty.className = 'pod-slot-empty';
+    empty.innerHTML = `<div class="pod-slot-empty-icon">📦</div><div class="pod-slot-empty-text">Empty slot</div>`;
+    slotEl.appendChild(empty);
+    const addBtn = document.createElement('button');
+    addBtn.className = 'add-pod-btn';
+    addBtn.textContent = '+ Add Pod';
+    addBtn.onclick = () => openAddPod(vehicleId, slotIdx);
+    slotEl.appendChild(addBtn);
+  }
+
+  if(isLauncher) {
+    const lbl = document.createElement('div');
+    lbl.className = 'pod-slot-label';
+    lbl.textContent = `Pod ${slotIdx+1}`;
+    slotEl.prepend(lbl);
+  }
+
+  return slotEl;
+}
+
+function renderPod(vehicleId, slotIdx, vehicleType, pod, isLauncher) {
+  const podEl = document.createElement('div');
+  podEl.className = 'pod';
+  podEl.draggable = true;
+
+  podEl.addEventListener('dragstart', e => {
+    dragPod = { vehicleId, slotIdx, vehicleType, pod };
+    e.dataTransfer.effectAllowed = 'move';
+  });
+  podEl.addEventListener('dragend', () => { dragPod = null; });
+
+  const isMissile = pod.type === 'missile';
+  const rounds = pod.rounds || (isMissile ? [false] : [false,false,false,false,false,false]);
+  const expended = rounds.filter(Boolean).length;
+  const total = isMissile ? 1 : 6;
+
+  podEl.innerHTML = `
+    <div class="pod-type-row">
+      <span class="pod-type-badge ${pod.type}">${pod.type==='rocket'?'ROCKET':'MISSILE'}</span>
+      <span class="pod-variant" onclick="openEditVariant('${vehicleId}',${slotIdx})">${pod.variant||'Set variant'}</span>
+    </div>
+    <div class="rounds-grid" id="rounds-${vehicleId}-${slotIdx}"></div>
+    <div style="font-size:10px;color:var(--text3);margin-top:5px;text-align:right">${expended}/${total} expended</div>`;
+
+  const grid = podEl.querySelector(`#rounds-${vehicleId}-${slotIdx}`);
+
+  if(isMissile) {
+    const btn = document.createElement('div');
+    btn.className = `round-circle missile-round ${rounds[0]?'expended':''}`;
+    btn.textContent = rounds[0] ? '✕ EXPENDED' : 'MISSILE';
+    btn.onclick = () => { if(isLauncher) toggleRound(vehicleId, slotIdx, 0); };
+    if(!isLauncher) btn.style.cursor='default';
+    grid.appendChild(btn);
+  } else {
+    for(let i=0; i<6; i++) {
+      const btn = document.createElement('div');
+      btn.className = `round-circle ${rounds[i]?'expended':''}`;
+      btn.textContent = rounds[i] ? '✕' : '';
+      if(isLauncher) {
+        btn.onclick = () => toggleRound(vehicleId, slotIdx, i);
+      } else {
+        btn.style.cursor = 'default';
+        btn.title = 'Load to launcher to expend';
+      }
+      grid.appendChild(btn);
+    }
+  }
+
+  return podEl;
+}
+
+// ═══════════════════════════════════════════
+// ACTIONS
+// ═══════════════════════════════════════════
+function toggleStatus(launcherId, status) {
+  if(status==='fmc') {
+    state.launchers[launcherId].fmc = !state.launchers[launcherId].fmc;
+    if(state.launchers[launcherId].fmc) state.launchers[launcherId].nmc = false;
+  } else {
+    state.launchers[launcherId].nmc = !state.launchers[launcherId].nmc;
+    if(state.launchers[launcherId].nmc) state.launchers[launcherId].fmc = false;
+  }
+  saveState(); render();
+}
+
+function toggleRound(vehicleId, slotIdx, roundIdx) {
+  const pod = state.launchers[vehicleId].pods[slotIdx];
+  if(!pod) return;
+  if(!pod.rounds) {
+    pod.rounds = pod.type==='missile' ? [false] : [false,false,false,false,false,false];
+  }
+  // If missile, toggle all 6 at once
+  if(pod.type==='missile') {
+    pod.rounds[0] = !pod.rounds[0];
+  } else {
+    pod.rounds[roundIdx] = !pod.rounds[roundIdx];
+  }
+  saveState(); render();
+}
+
+function openAddPod(vehicleId, slotIdx) {
+  addingTo = { vehicleId, slotIdx };
+  document.getElementById('pod-variant').value = '';
+  document.getElementById('pod-rounds').value = '6';
+  document.getElementById('pod-type').value = 'rocket';
+  document.getElementById('rounds-field').style.display='block';
+  document.getElementById('modal-add-pod').classList.remove('hidden');
+  document.getElementById('pod-type').onchange = function() {
+    document.getElementById('rounds-field').style.display = this.value==='missile'?'none':'block';
+  };
+}
+
+function confirmAddPod() {
+  if(!addingTo) return;
+  const type    = document.getElementById('pod-type').value;
+  const variant = document.getElementById('pod-variant').value.trim() || (type==='rocket'?'MLRS':'ATACMS');
+  const count   = type==='missile' ? 1 : Math.min(6, Math.max(1, parseInt(document.getElementById('pod-rounds').value)||6));
+  const rounds  = type==='missile' ? [false] : Array(count).fill(false).concat(Array(6-count).fill(null)).slice(0,6).map(v=>v===null?null:false);
+
+  const pod = { type, variant, rounds: type==='missile'?[false]:Array(6).fill(false).map((_,i)=>i<count?false:null) };
+
+  const { vehicleId, slotIdx } = addingTo;
+  if(state.launchers[vehicleId])      state.launchers[vehicleId].pods[slotIdx]  = pod;
+  else if(state.hemmts[vehicleId])    state.hemmts[vehicleId].pods[slotIdx]     = pod;
+  else if(state.trailers[vehicleId])  state.trailers[vehicleId].pods[slotIdx]   = pod;
+
+  closeModal('modal-add-pod');
+  addingTo = null;
+  saveState(); render();
+}
+
+function openEditVariant(vehicleId, slotIdx) {
+  editingPod = { vehicleId, slotIdx };
+  let pod = null;
+  if(state.launchers[vehicleId])     pod = state.launchers[vehicleId].pods[slotIdx];
+  else if(state.hemmts[vehicleId])   pod = state.hemmts[vehicleId].pods[slotIdx];
+  else if(state.trailers[vehicleId]) pod = state.trailers[vehicleId].pods[slotIdx];
+  if(!pod) return;
+  document.getElementById('edit-variant-input').value = pod.variant || '';
+  document.getElementById('modal-edit-variant').classList.remove('hidden');
+}
+
+function saveVariant() {
+  if(!editingPod) return;
+  const { vehicleId, slotIdx } = editingPod;
+  const val = document.getElementById('edit-variant-input').value.trim();
+  let pod = null;
+  if(state.launchers[vehicleId])     pod = state.launchers[vehicleId].pods[slotIdx];
+  else if(state.hemmts[vehicleId])   pod = state.hemmts[vehicleId].pods[slotIdx];
+  else if(state.trailers[vehicleId]) pod = state.trailers[vehicleId].pods[slotIdx];
+  if(pod) pod.variant = val;
+  closeModal('modal-edit-variant');
+  editingPod = null;
+  saveState(); render();
+}
+
+function removePodFromEdit() {
+  if(!editingPod) return;
+  const { vehicleId, slotIdx } = editingPod;
+  if(state.launchers[vehicleId])     state.launchers[vehicleId].pods[slotIdx]  = null;
+  else if(state.hemmts[vehicleId])   state.hemmts[vehicleId].pods[slotIdx]     = null;
+  else if(state.trailers[vehicleId]) state.trailers[vehicleId].pods[slotIdx]   = null;
+  closeModal('modal-edit-variant');
+  editingPod = null;
+  saveState(); render();
+}
+
+// ── DRAG AND DROP ──
+function handleDrop(e, targetVehicle, targetSlot, targetType) {
+  e.preventDefault();
+  document.querySelectorAll('.drag-over').forEach(el=>el.classList.remove('drag-over'));
+  if(!dragPod) return;
+
+  const { vehicleId:srcVehicle, slotIdx:srcSlot, vehicleType:srcType, pod } = dragPod;
+  if(srcVehicle===targetVehicle && srcSlot===targetSlot) return;
+
+  // Get target slot's current pod (for swap)
+  let targetPod = null;
+  if(state.launchers[targetVehicle])     targetPod = state.launchers[targetVehicle].pods[targetSlot];
+  else if(state.hemmts[targetVehicle])   targetPod = state.hemmts[targetVehicle].pods[targetSlot];
+  else if(state.trailers[targetVehicle]) targetPod = state.trailers[targetVehicle].pods[targetSlot];
+
+  // Set target
+  if(state.launchers[targetVehicle])     state.launchers[targetVehicle].pods[targetSlot]  = pod;
+  else if(state.hemmts[targetVehicle])   state.hemmts[targetVehicle].pods[targetSlot]     = pod;
+  else if(state.trailers[targetVehicle]) state.trailers[targetVehicle].pods[targetSlot]   = pod;
+
+  // Clear or swap source
+  if(state.launchers[srcVehicle])     state.launchers[srcVehicle].pods[srcSlot]  = targetPod;
+  else if(state.hemmts[srcVehicle])   state.hemmts[srcVehicle].pods[srcSlot]     = targetPod;
+  else if(state.trailers[srcVehicle]) state.trailers[srcVehicle].pods[srcSlot]   = targetPod;
+
+  dragPod = null;
+  saveState(); render();
+}
+
+// ── UBL CALC ──
+function updateUBL() {
+  let totalPods=0, loaded=0, expended=0, emptyPods=0;
+
+  const allVehicles = [
+    ...Object.values(state.launchers),
+    ...Object.values(state.hemmts),
+    ...Object.values(state.trailers),
+  ];
+
+  allVehicles.forEach(v => {
+    v.pods.forEach(pod => {
+      if(!pod) return;
+      totalPods++;
+      const isMissile = pod.type==='missile';
+      const rounds = pod.rounds || (isMissile?[false]:[false,false,false,false,false,false]);
+      const validRounds = rounds.filter(r=>r!==null);
+      const expendedCount = validRounds.filter(Boolean).length;
+      const totalRounds = validRounds.length;
+      loaded    += totalRounds;
+      expended  += expendedCount;
+      if(expendedCount === totalRounds && totalRounds > 0) emptyPods++;
+    });
+  });
+
+  const remaining = loaded - expended;
+  document.getElementById('ubl-total-pods').textContent = totalPods;
+  document.getElementById('ubl-loaded').textContent     = loaded;
+  document.getElementById('ubl-expended').textContent   = expended;
+  document.getElementById('ubl-empty-pods').textContent = emptyPods;
+  document.getElementById('ubl-current').textContent    = `${totalPods-emptyPods} pods / ${remaining} rounds`;
+}
+
+// ── RESET ──
+function confirmReset() {
+  document.getElementById('modal-reset').classList.remove('hidden');
+}
+function resetAll() {
+  state = defaultState();
+  saveState();
+  closeModal('modal-reset');
+  render();
+}
+
+// ── MODAL ──
+function closeModal(id) {
+  document.getElementById(id).classList.add('hidden');
+}
+// Close on overlay click
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', e => {
+    if(e.target===overlay) overlay.classList.add('hidden');
+  });
+});
+
+// ── INIT ──
+render();
+</script>
+</body>
+</html>
